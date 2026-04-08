@@ -1,0 +1,196 @@
+================================================================================
+TRAVEL AI API — DIA 1: Java OOP + Spring Boot REST API
+================================================================================
+Data: 07/04/2026
+Plano: Semana 1, Dia 1-2 — Java Intermediário + Spring Boot
+
+--------------------------------------------------------------------------------
+OBJETIVO DO DIA 1
+--------------------------------------------------------------------------------
+Criar a base da API com 3 endpoints REST funcionando, entendendo:
+- OOP: encapsulamento, injeção de dependência
+- Arquitetura em camadas: Controller → Service → Repository → Model
+- Anotações Spring Boot: @RestController, @Service, @Autowired
+- Lombok: eliminar código repetitivo
+
+--------------------------------------------------------------------------------
+ARQUIVOS CRIADOS
+--------------------------------------------------------------------------------
+
+1. pom.xml — Configuração do Projeto (Maven)
+   Equivalente ao package.json do Node. Define as dependências:
+
+   - spring-boot-starter-web  → cria o servidor HTTP e processa REST
+   - lombok                   → gera getters/setters automaticamente (elimina ~50 linhas)
+   - spring-boot-devtools     → reinicia o app ao salvar (hot reload)
+   - spring-boot-starter-test → testes
+
+   Spring Boot versão: 3.4.4
+   Java versão: 21
+
+--------------------------------------------------------------------------------
+
+2. TravelAiApiApplication.java — Ponto de Entrada da Aplicação
+   Caminho: src/main/java/com/travel/TravelAiApiApplication.java
+
+   @SpringBootApplication
+   public class TravelAiApiApplication {
+       public static void main(String[] args) {
+           SpringApplication.run(TravelAiApiApplication.class, args);
+       }
+   }
+
+   - É o main() do projeto
+   - @SpringBootApplication ativa tudo: escaneamento de componentes,
+     configuração automática, servidor Tomcat embutido na porta 8080
+
+--------------------------------------------------------------------------------
+
+3. Trip.java — O Modelo (Model)
+   Caminho: src/main/java/com/travel/model/Trip.java
+
+   @Data             → gera: getters, setters, toString, equals, hashCode
+   @NoArgsConstructor → gera: public Trip() {}
+   @AllArgsConstructor → gera: public Trip(String id, String destination, ...)
+   public class Trip {
+       private String id;
+       private String destination;   // destino da viagem
+       private String traveler;      // nome do viajante
+       private LocalDate startDate;  // data de ida
+       private LocalDate endDate;    // data de volta
+       private double budget;        // orçamento em USD
+       private String status;        // PLANNED, IN_PROGRESS, COMPLETED
+   }
+
+   CONCEITO — Lombok:
+   Sem Lombok você escreveria ~50 linhas de getters/setters manualmente.
+   Com @Data, 1 anotação faz tudo. O compilador gera o código no build.
+
+   CONCEITO — Factory Method (padrão OOP):
+   O método estático Trip.create(...) encapsula a criação do objeto,
+   garantindo que o ID (UUID) e o status ("PLANNED") sempre sejam
+   gerados corretamente. Quem cria uma Trip de fora não precisa saber
+   desses detalhes.
+
+   Por que UUID?
+   UUID.randomUUID() gera um identificador único universal (ex: "a3f2-...").
+   Garante IDs únicos sem precisar de banco de dados sequencial.
+
+--------------------------------------------------------------------------------
+
+4. TripService.java — Camada de Negócio (Service)
+   Caminho: src/main/java/com/travel/service/TripService.java
+
+   @Service
+   public class TripService {
+       private final List<Trip> trips = new ArrayList<>(); // banco em memória
+
+       public List<Trip> findAll() { ... }
+       public Optional<Trip> findById(String id) { ... }
+       public Trip create(...) { ... }
+   }
+
+   CONCEITO — @Service e Injeção de Dependência:
+   Você nunca vai chamar "new TripService()" no código.
+   O Spring cria e gerencia uma instância única (Singleton) e a injeta
+   onde for preciso via @Autowired. Isso se chama IoC (Inversion of Control).
+
+   CONCEITO — Optional<Trip>:
+   Em vez de retornar null (que causa NullPointerException se você esquecer
+   de verificar), o Optional força quem usa o método a tratar o caso "não encontrado".
+   É um contrato explícito: "pode ou não ter um valor".
+
+   CONCEITO — List em memória (temporário):
+   Por enquanto os dados somem ao reiniciar o app.
+   Na Semana 2 vamos substituir pela AWS DynamoDB — o código do Service
+   não precisará mudar graças à separação de camadas.
+
+--------------------------------------------------------------------------------
+
+5. TripController.java — Endpoints HTTP (Controller)
+   Caminho: src/main/java/com/travel/controller/TripController.java
+
+   @RestController         → responde requisições HTTP e retorna JSON
+   @RequestMapping("/trips") → todas as rotas começam com /trips
+   public class TripController {
+
+       @Autowired
+       private TripService tripService;
+
+       @GetMapping              → GET /trips         → lista todas
+       @GetMapping("/{id}")     → GET /trips/{id}    → busca por ID
+       @PostMapping             → POST /trips        → cria nova viagem
+   }
+
+   ENDPOINTS:
+   ┌────────┬──────────────┬───────────────────────────┬──────────────────┐
+   │ Método │ Rota         │ O que faz                 │ Retorno HTTP     │
+   ├────────┼──────────────┼───────────────────────────┼──────────────────┤
+   │ GET    │ /trips       │ Lista todas as viagens    │ 200 OK + array   │
+   │ GET    │ /trips/{id}  │ Busca viagem por ID       │ 200 OK ou 404    │
+   │ POST   │ /trips       │ Cria nova viagem          │ 201 Created      │
+   └────────┴──────────────┴───────────────────────────┴──────────────────┘
+
+   CONCEITO — @PathVariable vs @RequestBody:
+   @PathVariable: extrai valor da URL   → GET /trips/abc123  (id = "abc123")
+   @RequestBody:  lê o JSON do body     → POST com {"destination": "SP", ...}
+
+   CONCEITO — ResponseEntity:
+   Permite controlar o status HTTP de resposta.
+   ResponseEntity.ok(body)           → 200 OK
+   ResponseEntity.notFound().build() → 404 Not Found
+   ResponseEntity.status(CREATED)    → 201 Created
+
+--------------------------------------------------------------------------------
+ARQUITETURA EM CAMADAS
+--------------------------------------------------------------------------------
+
+   Requisição HTTP
+         ↓
+    Controller    ← recebe JSON, valida formato, delega ao Service
+         ↓
+     Service      ← regras de negócio (validações, lógica)
+         ↓
+   Repository     ← acesso a dados (hoje: List / Semana 2: DynamoDB)
+         ↓
+      Model       ← representa os dados (Trip)
+
+   REGRA DE OURO: cada camada só conhece a camada abaixo dela.
+   Controller conhece Service. Service conhece Repository. Ninguém "pula" camadas.
+
+   BENEFÍCIO: quando trocar o banco de memória pelo DynamoDB, só muda
+   o Repository — Controller e Service ficam intocados.
+
+--------------------------------------------------------------------------------
+COMO RODAR O PROJETO
+--------------------------------------------------------------------------------
+
+   Pré-requisito: Java 21 instalado
+
+   # Subir o servidor (porta 8080)
+   ./mvnw spring-boot:run
+
+   # Criar uma viagem
+   curl -X POST http://localhost:8080/trips \
+     -H "Content-Type: application/json" \
+     -d '{"destination":"Sao Paulo","traveler":"Roger","startDate":"2024-06-15","endDate":"2024-06-18","budget":"1500"}'
+
+   # Listar todas as viagens
+   curl http://localhost:8080/trips
+
+   # Buscar por ID (use o id retornado no POST)
+   curl http://localhost:8080/trips/{id}
+
+--------------------------------------------------------------------------------
+PRÓXIMOS PASSOS (Dia 2)
+--------------------------------------------------------------------------------
+   - Tratamento de erros com @ControllerAdvice / @ExceptionHandler
+   - Validação de entrada com @Valid e Bean Validation
+   - DTOs (Data Transfer Objects): separar modelo interno do JSON externo
+   - Testes unitários com JUnit 5
+
+   Para retomar:
+   Abra o repositório https://github.com/roger-almeida/travel-ai-api
+   e diga ao Claude: "Estou na Semana 1, Dia 2. Me ajude a continuar."
+
+================================================================================
