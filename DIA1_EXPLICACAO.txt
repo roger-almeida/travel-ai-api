@@ -194,3 +194,115 @@ PRÓXIMOS PASSOS (Dia 2)
    e diga ao Claude: "Estou na Semana 1, Dia 2. Me ajude a continuar."
 
 ================================================================================
+
+================================================================================
+DIA 1 — DUVIDAS E APROFUNDAMENTOS (sessao de revisao)
+================================================================================
+
+--------------------------------------------------------------------------------
+DIFERENCA ENTRE .java E .class
+--------------------------------------------------------------------------------
+
+   Voce vai encontrar dois arquivos com o mesmo nome mas extensoes diferentes:
+   Trip.java e Trip.class, TripService.java e TripService.class, etc.
+
+   .java  → arquivo FONTE — voce escreve e edita. Texto puro, legivel.
+            Fica em: src/main/java/com/travel/
+   .class → arquivo COMPILADO — a JVM executa. Binario, nao legivel.
+            Fica em: target/classes/com/travel/
+
+   O fluxo:
+
+   Voce escreve        Compilador Java          JVM executa
+     Trip.java   ─────────────────────►   Trip.class
+   (texto legivel)   (javac / Maven)      (bytecode binario)
+
+   ANALOGIA: o .java e uma receita escrita em portugues. O .class e essa
+   receita traduzida para uma linguagem que o "forno" (JVM) entende e executa.
+
+   REGRAS PRATICAS:
+   - Nunca edite um .class — qualquer mudanca some na proxima compilacao
+   - A pasta target/ inteira e descartavel (pode deletar a qualquer hora)
+   - target/ nao vai para o GitHub (esta no .gitignore) — so src/ vai
+   - Ao rodar "./mvnw spring-boot:run", Maven compila .java → .class → JVM roda
+
+--------------------------------------------------------------------------------
+O QUE E UMA INSTANCIA
+--------------------------------------------------------------------------------
+
+   Uma CLASSE e um molde (planta baixa de uma casa).
+   Uma INSTANCIA e o objeto construido de verdade na memoria RAM.
+
+   // Trip e a CLASSE — so existe no codigo, e o molde
+   public class Trip {
+       private String destination;
+       ...
+   }
+
+   // trip1 e trip2 sao INSTANCIAS — objetos reais criados na memoria
+   Trip trip1 = new Trip();   // construiu uma "casa" na memoria
+   Trip trip2 = new Trip();   // construiu outra "casa" independente
+
+   trip1 e trip2 sao objetos separados. Mudar o destination de trip1
+   nao afeta trip2. Eles existem na RAM enquanto o programa roda.
+
+   Instanciar = criar um objeto real a partir de um molde usando "new".
+
+--------------------------------------------------------------------------------
+O QUE E @Autowired E INJECAO DE DEPENDENCIA
+--------------------------------------------------------------------------------
+
+   O PROBLEMA sem Spring:
+   Para o TripController usar o TripService, voce criaria manualmente:
+
+   public class TripController {
+       private TripService tripService = new TripService();  // voce constroi
+   }
+
+   Isso cria ACOPLAMENTO: o Controller e responsavel por saber como construir
+   o Service. Se o Service mudar, o Controller precisa mudar junto.
+
+   O QUE O SPRING FAZ:
+   Quando o app sobe, o Spring varre o codigo, encontra tudo marcado com
+   @Service, @RestController etc., cria uma instancia de cada um e guarda
+   num "deposito" chamado Container:
+
+   Spring Container (deposito de objetos prontos)
+   +------------------------------------------------+
+   |  TripService    → instancia criada e guardada  |
+   |  TripController → instancia criada e guardada  |
+   +------------------------------------------------+
+
+   Quando voce usa @Autowired:
+
+   @RestController
+   public class TripController {
+       @Autowired
+       private TripService tripService;  // "Spring, me entrega a instancia pronta"
+   }
+
+   Voce esta dizendo: "nao vou criar isso — voce me entrega o objeto que ja
+   esta no seu container". O Spring coloca o objeto nessa variavel pra voce.
+
+   ANALOGIA DO RESTAURANTE:
+   - Sem Spring: o garcom vai a fazenda, planta o tomate, cozinha e serve.
+   - Com @Autowired: o garcom pede para a cozinha e recebe o prato pronto.
+   O TripController e o garcom. O TripService e o prato. O Spring e a cozinha.
+
+   POR QUE ISSO IMPORTA:
+
+   Situacao                     Sem DI              Com @Autowired
+   ------------------------------------------------------------------
+   Trocar implementacao         Muda em todo lugar  Muda so a classe
+   Testar Controller isolado    Dificil             Injeta Service falso
+   Multiplos usos do Service    Cria N instancias   Spring cria 1, reutiliza
+
+   Esse ultimo ponto e o padrao SINGLETON: por padrao o Spring cria UMA
+   unica instancia de cada classe e a compartilha em todo o app.
+   Economiza memoria e garante consistencia.
+
+   RESUMO EM UMA FRASE:
+   @Autowired = "Spring, voce cria e gerencia esse objeto — so me entrega
+   quando eu precisar", em vez de voce usar new e carregar essa responsabilidade.
+
+================================================================================
