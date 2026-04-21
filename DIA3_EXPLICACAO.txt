@@ -1,0 +1,200 @@
+================================================================================
+TRAVEL AI API — DIA 3: Docker
+================================================================================
+Data: 21/04/2026
+Plano: Semana 1, Dia 3-4 — Docker
+
+--------------------------------------------------------------------------------
+CONCEITO: CONTAINER vs VM
+--------------------------------------------------------------------------------
+
+Sem Docker, para rodar a API em outra maquina voce precisaria:
+instalar Java 21, configurar variaveis de ambiente, garantir versao certa
+do Maven, etc. Se a outra maquina tiver Java 17, quebra.
+
+Container resolve isso empacotando a aplicacao junto com tudo que ela precisa:
+JDK, dependencias, configuracoes. Voce entrega uma caixa que roda igual em
+qualquer lugar.
+
+VM (Maquina Virtual)                Container (Docker)
++-------------------------+          +-------------------------+
+|  App                    |          |  App                    |
+|  Bibliotecas            |          |  Bibliotecas            |
+|  Sistema Operacional    |          +-------------------------+
+|  Hypervisor             |          |  Docker Engine          |
+|  Hardware               |          |  Sistema Operacional    |
++-------------------------+          |  Hardware               |
+                                     +-------------------------+
+
+VM: virtualiza o hardware inteiro — carrega um SO completo (GBs).
+Container: compartilha o kernel do SO do host — leve, inicia em segundos.
+
+--------------------------------------------------------------------------------
+ARQUIVOS CRIADOS
+--------------------------------------------------------------------------------
+
+1. .dockerignore
+   Assim como .gitignore evita commitar target/, o .dockerignore evita copiar
+   arquivos desnecessarios para dentro da imagem Docker.
+   Sem ele, o target/ inteiro seria copiado, tornando a imagem maior.
+
+   Conteudo:
+   - target/       (pasta de compilacao — Docker compila dentro do container)
+   - .idea/        (arquivos do IDE)
+   - .env, *.log   (arquivos locais que nao devem ir para producao)
+
+--------------------------------------------------------------------------------
+
+2. Dockerfile — como construir a imagem Docker da API
+   Caminho: Dockerfile (raiz do projeto)
+
+   CONCEITO — Multi-stage Build:
+   Tecnica que usa DUAS imagens no mesmo Dockerfile:
+
+   Stage 1 (builder): imagem com Maven + JDK — compila e gera o .jar
+   Stage 2 (runtime): imagem so com JRE (menor) — copia o .jar e roda
+
+   Por que fazer isso?
+   - Imagem unica com JDK + Maven: ~600MB
+   - Multi-stage com JRE apenas: ~250MB
+   A imagem final nao carrega Maven nem JDK — so o necessario para rodar.
+
+   INSTRUCOES DO DOCKERFILE:
+
+   FROM eclipse-temurin:21-jdk-alpine AS builder
+   → Define a imagem base do Stage 1
+   → eclipse-temurin: distribuicao oficial do OpenJDK
+   → alpine: versao minimalista do Linux (~5MB)
+   → "AS builder": nomeia o stage para referencia no stage 2
+
+   WORKDIR /app
+   → Define o diretorio de trabalho dentro do container
+   → Todos os comandos seguintes rodam a partir de /app
+
+   COPY pom.xml . / COPY mvnw . / COPY .mvn .mvn
+   → Copia o pom.xml e o Maven wrapper ANTES do codigo fonte
+   → Por que essa ordem? Docker tem cache por camada.
+     Se o pom.xml nao mudou, Docker reutiliza o cache e nao
+     baixa as dependencias de novo — build muito mais rapido.
+
+   RUN ./mvnw dependency:go-offline -q
+   → Baixa todas as dependencias Maven antecipadamente
+   → Fica em cache enquanto pom.xml nao mudar
+
+   COPY src ./src
+   → Agora copia o codigo fonte
+   → Se so o codigo mudou (nao o pom.xml), Docker usa cache
+     das dependencias e so recompila o Java
+
+   RUN ./mvnw package -DskipTests -q
+   → Compila e gera o .jar em target/
+   → -DskipTests: pula testes (rodam no CI, nao no build da imagem)
+
+   FROM eclipse-temurin:21-jre-alpine
+   → Inicia o Stage 2 com imagem menor (JRE, nao JDK)
+   → JRE: so executa Java, nao compila (~180MB vs ~340MB do JDK)
+
+   COPY --from=builder /app/target/*.jar app.jar
+   → Copia o .jar gerado no Stage 1 para este container
+   → O resto do Stage 1 (Maven, JDK, codigo fonte) e descartado
+
+   EXPOSE 8080
+   → Documenta que o container usa a porta 8080
+   → Nao abre a porta de verdade (isso e feito no docker run ou compose)
+
+   ENTRYPOINT ["java", "-jar", "app.jar"]
+   → Comando executado quando o container inicia
+   → Equivale a rodar "java -jar app.jar" no terminal
+
+--------------------------------------------------------------------------------
+
+3. docker-compose.yml — orquestracao de multiplos containers
+   Caminho: docker-compose.yml (raiz do projeto)
+
+   Por que docker-compose em vez de so "docker run"?
+   "docker run" funciona para um container so. Com API + banco de dados,
+   o docker-compose gerencia tudo como um sistema unico.
+   Um unico "docker-compose up" sobe a API e o banco juntos.
+
+   SECOES DO DOCKER-COMPOSE:
+
+   services:
+   → Lista os containers que fazem parte do sistema
+
+   api:
+     build: context: . / dockerfile: Dockerfile
+     → Instrui o compose a construir a imagem usando o Dockerfile local
+     → Em vez de baixar imagem pronta, constroi a partir do nosso codigo
+
+   container_name: travel-ai-api
+   → Nome do container em execucao (facilita identificar em "docker ps")
+
+   ports: "8080:8080"
+   → Mapeia porta do host para porta do container
+   → Formato: "HOST:CONTAINER"
+   → localhost:8080 no seu computador chega na porta 8080 do container
+
+   environment:
+   → Variaveis de ambiente injetadas no container
+   → Spring Boot le essas variaveis — util para mudar config sem rebuildar
+
+   restart: on-failure
+   → Reinicia automaticamente se o container morrer por erro
+   → Nao reinicia se voce parar manualmente com "docker-compose down"
+
+   # database: (comentado)
+   → Bloco preparado para o DynamoDB local na Semana 2
+   → Ja esta estruturado para ser descomentado quando chegar a hora
+
+--------------------------------------------------------------------------------
+PENDENTE: INSTALACAO DO DOCKER
+--------------------------------------------------------------------------------
+
+   Docker Desktop nao estava instalado na maquina no momento do Dia 3.
+   Os arquivos foram criados e commitados, mas o build ainda nao foi testado.
+
+   PARA INSTALAR:
+   1. Acesse: https://docs.docker.com/desktop/install/windows-install/
+   2. Baixe o Docker Desktop for Windows
+   3. Execute o instalador (requer reinicializacao)
+   4. Apos reiniciar, aguarde o icone verde na bandeja do sistema
+
+   PARA TESTAR APOS INSTALAR:
+
+   # Verificar instalacao
+   docker --version
+   docker-compose --version
+
+   # Build manual da imagem (para testar o Dockerfile isolado)
+   docker build -t travel-ai-api:latest .
+
+   # Rodar o container manualmente
+   docker run -p 8080:8080 travel-ai-api:latest
+
+   # OU usar o docker-compose (recomendado)
+   docker-compose up --build
+
+   # Parar tudo
+   docker-compose down
+
+   # Verificar containers rodando
+   docker ps
+
+   # Ver logs do container
+   docker logs travel-ai-api
+
+   PARA RETOMAR:
+   Instale o Docker, volte ao repositorio e diga ao Claude:
+   "Estou na Semana 1, Dia 3. O Docker ja esta instalado. Vamos testar o build."
+
+--------------------------------------------------------------------------------
+PROXIMO: DIA 4
+--------------------------------------------------------------------------------
+
+   - Testar o build Docker apos instalar o Docker Desktop
+   - Verificar que "docker-compose up" sobe a API corretamente
+   - Testar endpoints via curl com container rodando
+   - Adicionar variaveis de ambiente para configuracao externa
+   - Preparar para o checkpoint: "docker-compose up" + Postman/curl funcionando
+
+================================================================================

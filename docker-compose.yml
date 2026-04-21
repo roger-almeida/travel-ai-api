@@ -1,0 +1,44 @@
+# docker-compose.yml — orquestração local dos containers
+# Versão 3.8: compatível com Docker Engine 19.03+
+
+services:
+
+  # Serviço da API Spring Boot
+  api:
+    # build: instrui o docker-compose a construir a imagem usando o Dockerfile local
+    # Em vez de baixar uma imagem pronta, ele constrói a partir do nosso código
+    build:
+      context: .          # diretório raiz do projeto (onde está o Dockerfile)
+      dockerfile: Dockerfile
+
+    # Nome do container em execução (facilita identificar em "docker ps")
+    container_name: travel-ai-api
+
+    # ports: mapeia porta do host → porta do container
+    # "8080:8080" = acesso via localhost:8080 no seu computador chega na porta 8080 do container
+    # Formato: "HOST:CONTAINER"
+    ports:
+      - "8080:8080"
+
+    # environment: variáveis de ambiente injetadas no container
+    # O Spring Boot lê essas variáveis via application.properties
+    # SERVER_PORT redundante aqui, mas útil como exemplo de configuração externa
+    environment:
+      - SERVER_PORT=8080
+      - SPRING_PROFILES_ACTIVE=default
+
+    # restart: política de reinicialização
+    # "on-failure": reinicia automaticamente se o container morrer por erro
+    # (não reinicia se você parar manualmente com docker-compose down)
+    restart: on-failure
+
+  # -----------------------------------------------------------------
+  # BANCO DE DADOS — será ativado na Semana 2 (DynamoDB local / H2)
+  # Deixamos comentado para não precisar reescrever depois
+  # -----------------------------------------------------------------
+  # database:
+  #   image: amazon/dynamodb-local
+  #   container_name: dynamodb-local
+  #   ports:
+  #     - "8000:8000"
+  #   command: "-jar DynamoDBLocal.jar -sharedDb -inMemory"

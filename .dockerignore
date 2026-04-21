@@ -1,0 +1,11 @@
+# Ignora a pasta de compilação — o Docker vai compilar dentro do container
+target/
+
+# Ignora arquivos do IDE e sistema
+.idea/
+*.iml
+.DS_Store
+
+# Ignora arquivos de configuração local que não devem ir para produção
+.env
+*.log
