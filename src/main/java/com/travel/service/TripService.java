@@ -1,20 +1,17 @@
 package com.travel.service;
 
+import com.travel.exception.TripNotFoundException;
 import com.travel.model.Trip;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
-// @Service diz ao Spring: "gerencie essa classe, crie uma instância e disponibilize para injeção"
-// Você nunca vai chamar "new TripService()" manualmente — o Spring faz isso
 @Service
 public class TripService {
 
-    // Por enquanto, guardamos as viagens na memória (List)
-    // Na Semana 2 vamos substituir pelo DynamoDB
+    // Banco em memória — será substituído pelo DynamoDB na Semana 2
     private final List<Trip> trips = new ArrayList<>();
 
     // Retorna todas as viagens cadastradas
@@ -23,14 +20,18 @@ public class TripService {
     }
 
     // Busca uma viagem pelo ID
-    // Optional<Trip>: pode retornar uma Trip ou "vazio" (sem NullPointerException)
-    public Optional<Trip> findById(String id) {
+    // Antes retornava Optional<Trip> — agora lança TripNotFoundException se não encontrar
+    // Por quê? O GlobalExceptionHandler captura a exceção e devolve HTTP 404 automaticamente
+    // O Controller fica mais simples: só chama findById() sem se preocupar com "e se não existir?"
+    public Trip findById(String id) {
         return trips.stream()
                 .filter(trip -> trip.getId().equals(id))
-                .findFirst();
+                .findFirst()
+                .orElseThrow(() -> new TripNotFoundException(id));
+        // orElseThrow: se o Optional estiver vazio, lança a exceção fornecida
     }
 
-    // Cria uma nova viagem e salva na lista
+    // Cria e salva uma nova viagem
     public Trip create(String destination, String traveler,
                        LocalDate startDate, LocalDate endDate,
                        double budget) {

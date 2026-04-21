@@ -43,6 +43,12 @@
             <optional>true</optional>
         </dependency>
 
+        <!-- Validation: anotações @NotBlank, @NotNull, @Positive etc. para validar DTOs -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
         <!-- Testes -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
